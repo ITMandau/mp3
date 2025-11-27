@@ -228,20 +228,6 @@
                     @endif
                   </button>
 
-                  {{-- DIRECT CANCEL GR --}}
-                  @if($lastReceipt)
-                    <form action="{{ route('good-received.cancel', $lastReceipt) }}"
-                          method="POST"
-                          class="d-inline form-cancel-gr">
-                      @csrf
-                      <button type="submit"
-                              class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1">
-                        <i class="bx bx-trash"></i>
-                        <span>Cancel GR</span>
-                      </button>
-                    </form>
-                  @endif
-
                 </div>
               </td>
             </tr>
