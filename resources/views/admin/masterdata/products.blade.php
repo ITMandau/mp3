@@ -3,14 +3,22 @@
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
-<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css"/>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css"/>
 
 <style>
   .swal2-container { z-index: 20000 !important; }
 
-  #tblProducts{ width:100% !important; font-size:0.875rem; }
-  #tblProducts th{ white-space:nowrap; }
-  #tblProducts td{ white-space:normal; }
+  #tblProducts{
+    width:100% !important;
+    font-size:0.875rem;
+  }
+
+  /* Biar semua teks tetap satu baris (ke samping) */
+  #tblProducts th,
+  #tblProducts td{
+    white-space: nowrap;
+    vertical-align: middle;
+  }
 </style>
 
 <div class="container-xxl flex-grow-1 container-p-y">
@@ -32,15 +40,21 @@
     </div>
   </div>
 
-  {{-- FILTER BAR + SUMMARY --}}
+  {{-- FILTER BAR --}}
   <div class="row g-3 mb-3">
-    {{-- Filter utama --}}
-    <div class="col-md-8">
-      <div class="card h-100">
-        <div class="card-body">
-          <div class="row g-2 align-items-end">
-            <div class="col-6 col-md-2">
-              <label class="form-label mb-1 text-muted small">Show</label>
+    <div class="col-12">
+      <div class="card shadow-sm border-0">
+        <div class="card-body py-3">
+          <div class="row g-2 align-items-center">
+
+            {{-- Title kecil di kiri --}}
+            <div class="col-12 col-md-2 col-lg-1">
+              <span class="text-muted text-uppercase small fw-semibold">Filter</span>
+            </div>
+
+            {{-- Show --}}
+            <div class="col-6 col-md-2 col-lg-1">
+              <label class="form-label mb-1 text-muted small d-block">Show</label>
               <select id="pageLength" class="form-select form-select-sm">
                 <option value="10" selected>10</option>
                 <option value="25">25</option>
@@ -48,8 +62,9 @@
               </select>
             </div>
 
-            <div class="col-6 col-md-3">
-              <label class="form-label mb-1 text-muted small">Category</label>
+            {{-- Category --}}
+            <div class="col-6 col-md-4 col-lg-4">
+              <label class="form-label mb-1 text-muted small d-block">Category</label>
               <select id="filterCategory" class="form-select form-select-sm">
                 <option value="">All categories</option>
                 @foreach($categories as $c)
@@ -58,8 +73,9 @@
               </select>
             </div>
 
-            <div class="col-6 col-md-3">
-              <label class="form-label mb-1 text-muted small">Supplier</label>
+            {{-- Supplier --}}
+            <div class="col-12 col-md-4 col-lg-4">
+              <label class="form-label mb-1 text-muted small d-block">Supplier</label>
               <select id="filterSupplier" class="form-select form-select-sm">
                 <option value="">All suppliers</option>
                 @foreach($suppliers as $s)
@@ -68,88 +84,40 @@
               </select>
             </div>
 
-            <div class="col-12 col-md-4">
-              <label class="form-label mb-1 text-muted small">Search</label>
-              <div class="input-group input-group-sm">
-                <span class="input-group-text"><i class="bx bx-search"></i></span>
-                <input id="searchProduct" type="text" class="form-control" placeholder="Search code / name...">
-              </div>
-            </div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    {{-- SUMMARY KECIL DI KANAN --}}
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <h6 class="mb-3">Inventory summary</h6>
-
-          <div class="d-flex align-items-center mb-2">
-            <div class="avatar avatar-sm flex-shrink-0 me-2">
-              <span class="avatar-initial rounded-circle bg-label-primary">
-                <i class="bx bx-package"></i>
-              </span>
-            </div>
-            <div>
-              <div class="fw-semibold">{{ $productCount ?? 0 }}</div>
-              <div class="text-muted small">Total products</div>
-            </div>
-          </div>
-
-          <div class="d-flex align-items-center mb-2">
-            <div class="avatar avatar-sm flex-shrink-0 me-2">
-              <span class="avatar-initial rounded-circle bg-label-success">
-                <i class="bx bx-category"></i>
-              </span>
-            </div>
-            <div>
-              <div class="fw-semibold">{{ $categoryCount ?? 0 }}</div>
-              <div class="text-muted small">Product categories</div>
-            </div>
-          </div>
-
-          <div class="d-flex align-items-center">
-            <div class="avatar avatar-sm flex-shrink-0 me-2">
-              <span class="avatar-initial rounded-circle bg-label-info">
-                <i class="bx bx-user"></i>
-              </span>
-            </div>
-            <div>
-              <div class="fw-semibold">{{ $supplierCount ?? 0 }}</div>
-              <div class="text-muted small">Active suppliers</div>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>
   </div>
 
+
   {{-- TABEL PRODUK --}}
   <div class="card">
     <div class="card-body p-0">
-      <table id="tblProducts" class="table table-hover align-middle mb-0 table-bordered">
-        <thead class="table-light">
-        <tr>
-          <th style="width: 60px">NO</th>
-          <th>CODE</th>
-          <th>PRODUCT NAME</th>
-          <th>CATEGORY</th>
-          <th>UOM</th>
-          <th>SUPPLIER</th>
-          <th>DESCRIPTION</th>
-          <th class="text-end">STOCK</th>
-          <th class="text-end">MIN STOCK</th>
-          <th>STATUS</th>
-          <th class="text-end">PURCHASING</th>
-          <th class="text-end">SELLING</th>
-          <th style="width: 110px">ACTIONS</th>
-        </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      {{-- wrapper buat horizontal scroll --}}
+      <div class="table-responsive">
+        <table id="tblProducts"
+               class="table table-striped table-hover align-middle mb-0 table-bordered w-100">
+          <thead class="table-light">
+          <tr>
+            <th style="width: 60px">NO</th>
+            <th>CODE</th>
+            <th>PRODUCT NAME</th>
+            <th>CATEGORY</th>
+            <th>UOM</th>
+            <th>SUPPLIER</th>
+            <th>DESCRIPTION</th>
+            <th class="text-end">STOCK</th>
+            <th class="text-end">MIN STOCK</th>
+            <th>STATUS</th>
+            <th class="text-end">PURCHASING</th>
+            <th class="text-end">SELLING</th>
+            <th style="width: 110px">ACTIONS</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -254,8 +222,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
-<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
@@ -272,18 +238,20 @@ $(function () {
     serverSide: true,
     lengthChange: false,
     dom: 'rt<"d-flex justify-content-between align-items-center p-2"ip>',
-    ajax: { url: dtUrl, type: 'GET' },
-    order: [[1, 'asc']],
-    pagingType: "simple_numbers",
-    responsive: {
-      details: {
-        type: 'inline'
+    ajax: {
+      url: dtUrl,
+      type: 'GET',
+      data: function (d) {
+        // kirim filter ke server
+        d.category = $('#filterCategory').val();
+        d.supplier = $('#filterSupplier').val();
       }
     },
-    columnDefs: [
-      { responsivePriority: 1, targets: [1,2] },
-      { responsivePriority: 2, targets: -1 }
-    ],
+    order: [[1, 'asc']],
+    pagingType: "simple_numbers",
+    scrollX: true,      // ini yang bikin bisa scroll ke samping
+    autoWidth: false,
+    responsive: false,  // MATIKAN row child
     columns: [
       { data: 'rownum',           orderable:false, searchable:false },
       { data: 'product_code' },
@@ -301,20 +269,22 @@ $(function () {
     ]
   });
 
-  $('#searchProduct').on('keyup change', function () {
-    table.search(this.value).draw();
-  });
+  // GLOBAL NAVBAR SEARCH (input id="globalSearch" di navbar)
+  const $globalSearch = $('#globalSearch');
+  if ($globalSearch.length) {
+    $globalSearch.off('.products').on('keyup.products change.products', function () {
+      table.search(this.value).draw();
+    });
+  }
 
+  // page length
   $('#pageLength').on('change', function () {
     table.page.len(parseInt(this.value || 10, 10)).draw();
   });
 
-  $('#filterCategory').on('change', function () {
-    table.column(3).search(this.value).draw();
-  });
-
-  $('#filterSupplier').on('change', function () {
-    table.column(5).search(this.value).draw();
+  // DROPDOWN FILTER: reload datatable
+  $('#filterCategory, #filterSupplier').on('change', function () {
+    table.ajax.reload();
   });
 
   $('#product_code').on('input', function () {
