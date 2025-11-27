@@ -337,25 +337,6 @@
                 </tbody>
                 </table>
             </div>
-
-            {{-- Area tanda tangan --}}
-            <div class="row mt-4">
-                <div class="col-md-6 text-center">
-                <p class="mb-5">Dibuat oleh,</p>
-                <p class="fw-semibold">{{ $adj->creator->name ?? '__________________' }}</p>
-                </div>
-                <div class="col-md-6 text-center">
-                <p class="mb-5">Disetujui oleh,</p>
-                <p class="fw-semibold">__________________</p>
-                </div>
-            </div>
-            </div>
-
-            <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                Tutup
-            </button>
-            </div>
         </div>
         </div>
     </div>
