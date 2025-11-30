@@ -8,16 +8,31 @@
 <style>
   .swal2-container { z-index: 20000 !important; }
 
+  /* ==== TABEL LEBIH RINGKES, GA PERLU SCROLL SAMPING ==== */
   #tblProducts{
-    width:100% !important;
-    font-size:0.875rem;
+    width: 100% !important;
+    table-layout: fixed;        /* lebar kolom dibagi rata, ga nambahin width */
+    font-size: 0.75rem;         /* ~12px, lebih kecil biar muat */
   }
 
-  /* Biar semua teks tetap satu baris (ke samping) */
   #tblProducts th,
   #tblProducts td{
-    white-space: nowrap;
+    white-space: nowrap;        /* biar teks 1 baris, ga turun ke bawah */
     vertical-align: middle;
+    padding: .35rem .45rem;     /* padding diperkecil */
+    overflow: hidden;           /* kalau kepanjangan, dipotong */
+    text-overflow: ellipsis;    /* tampil "..." kalau kepanjangan */
+  }
+
+  /* Kolom nama produk dan deskripsi biasanya paling panjang → kasih max-width */
+  #tblProducts th:nth-child(3),
+  #tblProducts td:nth-child(3){
+    max-width: 180px;
+  }
+
+  #tblProducts th:nth-child(7),
+  #tblProducts td:nth-child(7){
+    max-width: 220px;
   }
 </style>
 
@@ -94,24 +109,23 @@
   {{-- TABEL PRODUK --}}
   <div class="card">
     <div class="card-body p-0">
-      {{-- wrapper buat horizontal scroll --}}
       <div class="table-responsive">
         <table id="tblProducts"
                class="table table-striped table-hover align-middle mb-0 table-bordered w-100">
           <thead class="table-light">
           <tr>
-            <th style="width: 60px">NO</th>
-            <th>CODE</th>
+            <th style="width: 50px">NO</th>
+            <th style="width: 80px">CODE</th>
             <th>PRODUCT NAME</th>
-            <th>CATEGORY</th>
-            <th>UOM</th>
-            <th>SUPPLIER</th>
+            <th style="width: 110px">CATEGORY</th>
+            <th style="width: 70px">UOM</th>
+            <th style="width: 140px">SUPPLIER</th>
             <th>DESCRIPTION</th>
-            <th class="text-end">STOCK</th>
-            <th class="text-end">MIN STOCK</th>
-            <th>STATUS</th>
-            <th class="text-end">PURCHASING</th>
-            <th class="text-end">SELLING</th>
+            <th class="text-end" style="width: 70px">STOCK</th>
+            <th class="text-end" style="width: 90px">MIN STOCK</th>
+            <th style="width: 70px">STATUS</th>
+            <th class="text-end" style="width: 100px">PURCHASING</th>
+            <th class="text-end" style="width: 100px">SELLING</th>
             <th style="width: 110px">ACTIONS</th>
           </tr>
           </thead>
@@ -242,24 +256,23 @@ $(function () {
       url: dtUrl,
       type: 'GET',
       data: function (d) {
-        // kirim filter ke server
         d.category = $('#filterCategory').val();
         d.supplier = $('#filterSupplier').val();
       }
     },
     order: [[1, 'asc']],
     pagingType: "simple_numbers",
-    scrollX: true,      // ini yang bikin bisa scroll ke samping
     autoWidth: false,
-    responsive: false,  // MATIKAN row child
+    responsive: false,
+
     columns: [
       { data: 'rownum',           orderable:false, searchable:false },
       { data: 'product_code' },
-      { data: 'name' },
+      { data: 'name' },          // kolom 3 (PRODUCT NAME) → ikut max-width CSS
       { data: 'category' },
       { data: 'package' },
       { data: 'supplier' },
-      { data: 'description' },
+      { data: 'description' },   // kolom 7 (DESCRIPTION) → ikut max-width CSS
       { data: 'stock',            className:'text-end' },
       { data: 'min_stock',        className:'text-end' },
       { data: 'status',           orderable:false, searchable:false },
@@ -268,14 +281,6 @@ $(function () {
       { data: 'actions',          orderable:false, searchable:false }
     ]
   });
-
-  // GLOBAL NAVBAR SEARCH (input id="globalSearch" di navbar)
-  const $globalSearch = $('#globalSearch');
-  if ($globalSearch.length) {
-    $globalSearch.off('.products').on('keyup.products change.products', function () {
-      table.search(this.value).draw();
-    });
-  }
 
   // page length
   $('#pageLength').on('change', function () {
@@ -286,6 +291,14 @@ $(function () {
   $('#filterCategory, #filterSupplier').on('change', function () {
     table.ajax.reload();
   });
+
+  // GLOBAL NAVBAR SEARCH (input id="globalSearch" di navbar)
+  const $globalSearch = $('#globalSearch');
+  if ($globalSearch.length) {
+    $globalSearch.off('.products').on('keyup.products change.products', function () {
+      table.search(this.value).draw();
+    });
+  }
 
   $('#product_code').on('input', function () {
     this.value = this.value.toUpperCase();

@@ -64,7 +64,7 @@
           <label class="form-label">Informasi Supplier</label>
           <input type="text"
                  class="form-control"
-                 value="Supplier mengikuti masing-masing produk (multi supplier diperbolehkan)."
+                 value="{{ $po->supplier->supplier_name ?? $po->supplier->name ?? $po->supplier_id }}"
                  disabled>
         </div>
         <div class="col-md-8">
@@ -270,9 +270,6 @@
         <button type="submit" class="btn btn-warning me-2">
           Set ORDERED
         </button>
-        <a href="{{ route('po.index') }}" class="btn btn-outline-secondary">
-          Kembali
-        </a>
       </form>
 
       <form method="POST" action="{{ route('po.cancel',$po->id) }}">
