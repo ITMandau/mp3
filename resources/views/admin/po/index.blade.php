@@ -42,6 +42,7 @@
               <th class="text-end">Discount</th>
               <th class="text-end">Grand</th>
               <th>Lines</th>
+              <th>Warehouse</th>   {{-- <<=== baru --}}
               <th class="text-end">Actions</th>
             </tr>
           </thead>
@@ -50,23 +51,17 @@
               @php
                 $hasGr = $po->restockReceipts->count() > 0;
 
-                // cuma boleh receive kalau:
-                // - belum ada GR AKTIF
-                // - status PO = ordered
-                // - ada item di dalam PO
                 $canReceive = !$hasGr
                               && in_array($po->status, ['ordered'])
                               && $po->items_count > 0;
 
-                // ====== summary supplier (header PO + supplier per product) ======
+                // summary supplier (sama seperti sebelumnya)
                 $supplierNames = collect();
 
-                // dari header PO kalau ada
                 if (!empty($po->supplier?->name)) {
                     $supplierNames->push($po->supplier->name);
                 }
 
-                // dari setiap item → product → supplier
                 foreach ($po->items as $it) {
                     $sName = $it->product->supplier->name ?? null;
                     if ($sName) {
@@ -83,7 +78,38 @@
                 } else {
                     $supplierLabel = $supplierNames->first().' + '.($supplierNames->count() - 1).' supplier';
                 }
-              @endphp
+
+                // ====== SUMMARY WAREHOUSE ======
+                $fromRequest = $po->items->whereNotNull('request_id')->isNotEmpty();
+
+                if (!$fromRequest) {
+                    // PO manual dari pusat → selalu Central Stock
+                    $warehouseLabel = 'Central Stock';
+                } else {
+                    // PO dari Request Restock → ambil nama warehouse dari item
+                    $warehouseNames = collect();
+
+                    foreach ($po->items as $it) {
+                        if ($it->warehouse) {
+                            $warehouseNames->push(
+                                $it->warehouse->warehouse_name
+                                ?? $it->warehouse->name
+                            );
+                        }
+                    }
+
+                    $warehouseNames = $warehouseNames->filter()->unique()->values();
+
+                    if ($warehouseNames->isEmpty()) {
+                        $warehouseLabel = '-';
+                    } elseif ($warehouseNames->count() === 1) {
+                        $warehouseLabel = $warehouseNames->first();
+                    } else {
+                        $warehouseLabel = $warehouseNames->first().' + '.($warehouseNames->count() - 1).' wh';
+                    }
+                }
+            @endphp
+
               <tr>
                 <td class="fw-bold">{{ $po->po_code }}</td>
                 <td>{{ $supplierLabel }}</td>
@@ -97,10 +123,10 @@
                 <td class="text-end">{{ number_format($po->discount_total,0,',','.') }}</td>
                 <td class="text-end">{{ number_format($po->grand_total,0,',','.') }}</td>
                 <td>{{ $po->items_count }}</td>
+                <td>{{ $warehouseLabel }}</td>  {{-- <<=== baru --}}
                 <td class="text-end">
                   <div class="btn-group">
                     <a class="btn btn-sm btn-primary" href="{{ route('po.edit',$po->id) }}">Open</a>
-
                     @if($canReceive)
                       <button type="button"
                               class="btn btn-sm btn-success"
@@ -114,10 +140,11 @@
               </tr>
             @empty
               <tr>
-                <td colspan="8" class="text-center text-muted">Belum ada PO.</td>
+                <td colspan="9" class="text-center text-muted">Belum ada PO.</td>
               </tr>
             @endforelse
           </tbody>
+              
         </table>
       </div>
 

@@ -1,8 +1,8 @@
 @extends('layouts.home')
 
 @section('content')
+
 @php
-  // dikirim dari controller: $isLocked = ($po->status === 'completed');
   $poLocked = $isLocked ?? false;
 @endphp
 
@@ -38,7 +38,9 @@
       </h5>
       <small class="text-muted">
         @if($poLocked)
-          PO sudah COMPLETED, tidak dapat diubah. Jika GR dihapus (approved), status PO akan dibuka lagi.
+          PO sudah berstatus <strong>{{ strtoupper($po->status) }}</strong>, tidak dapat diubah.
+          Jika seluruh Goods Received dihapus (approve cancel) dan status PO dibuka lagi (mis. ke DRAFT),
+          maka PO bisa diedit kembali.
         @else
           PO baru / aktif, silakan isi item dan simpan.
         @endif
@@ -62,7 +64,7 @@
           <label class="form-label">Informasi Supplier</label>
           <input type="text"
                  class="form-control"
-                 value="Supplier mengikuti masing-masing produk (multi supplier diperbolehkan)."
+                 value="{{ $po->supplier->supplier_name ?? $po->supplier->name ?? $po->supplier_id }}"
                  disabled>
         </div>
         <div class="col-md-8">
@@ -100,44 +102,80 @@
           <tbody>
             @php $idx = 0; @endphp
             @foreach($po->items as $it)
+              @php
+                $rowFromRequest = $isFromRequest && $it->request_id;
+              @endphp
               <tr data-index="{{ $idx }}">
                 <td class="row-num"></td>
 
-                {{-- PRODUCT + hidden id & request_id --}}
+                {{-- PRODUCT --}}
                 <td>
                   <input type="hidden" name="items[{{ $idx }}][id]" value="{{ $it->id }}">
                   <input type="hidden" name="items[{{ $idx }}][request_id]" value="{{ $it->request_id }}">
 
-                  <select name="items[{{ $idx }}][product_id]" class="form-select form-select-sm product-select" @disabled($poLocked)>
-                    <option value="">— Pilih —</option>
-                    @foreach($products as $p)
-                      <option value="{{ $p->id }}"
-                              data-price="{{ (int)$p->selling_price }}"
-                              data-supplier="{{ $p->supplier->name ?? '-' }}"
-                              @selected($p->id == $it->product_id)>
-                        {{ $p->product_code }} — {{ $p->name }}
-                      </option>
-                    @endforeach
-                  </select>
-                  <div class="small text-muted js-supplier-label">
-                    {{ $it->product->supplier->name ?? '-' }}
-                  </div>
+                  @if($rowFromRequest)
+                    {{-- dari Request Restock → product tidak boleh diganti --}}
+                    <input type="hidden" name="items[{{ $idx }}][product_id]" value="{{ $it->product_id }}">
+                    <div class="fw-semibold">
+                      {{ $it->product->product_code ?? '-' }} — {{ $it->product->name ?? '-' }}
+                    </div>
+                    <div class="small text-muted js-supplier-label">
+                      {{ $it->product->supplier->name ?? '-' }}
+                    </div>
+                  @else
+                    {{-- item biasa / tambahan → boleh pilih product --}}
+                    <select name="items[{{ $idx }}][product_id]"
+                            class="form-select form-select-sm product-select"
+                            @disabled($poLocked)>
+                      <option value="">— Pilih —</option>
+                      @foreach($products as $p)
+                        @php
+                          $buy  = (int)($p->purchase_price ?? $p->buy_price ?? $p->cost_price ?? 0);
+                          $sell = (int)($p->selling_price ?? 0);
+                        @endphp
+                        <option value="{{ $p->id }}"
+                                data-buy="{{ $buy }}"
+                                data-sell="{{ $sell }}"
+                                data-supplier="{{ $p->supplier->name ?? '-' }}"
+                                @selected($p->id == $it->product_id)>
+                          {{ $p->product_code }} — {{ $p->name }}
+                        </option>
+                      @endforeach
+                    </select>
+                    <div class="small text-muted js-supplier-label">
+                      {{ $it->product->supplier->name ?? '-' }}
+                    </div>
+                  @endif
                 </td>
 
                 {{-- WAREHOUSE --}}
                 <td>
-                  @if($isFromRequest)
-                    <select name="items[{{ $idx }}][warehouse_id]" class="form-select form-select-sm" @disabled($poLocked)>
-                      <option value="">— Pilih —</option>
-                      @foreach($warehouses as $w)
-                        <option value="{{ $w->id }}" @selected($w->id == $it->warehouse_id)>
-                          {{ $w->warehouse_name }}
-                        </option>
-                      @endforeach
-                    </select>
+                  @if($rowFromRequest)
+                    {{-- warehouse fixed dari RF --}}
+                    <input type="hidden"
+                           name="items[{{ $idx }}][warehouse_id]"
+                           value="{{ $it->warehouse_id }}">
+                    <span>
+                      {{ $it->warehouse->warehouse_name ?? $it->warehouse->name ?? 'Warehouse #'.$it->warehouse_id }}
+                    </span>
                   @else
-                    <input type="hidden" name="items[{{ $idx }}][warehouse_id]" value="">
-                    <span class="text-muted">– Central Stock –</span>
+                    @if($isFromRequest)
+                      {{-- PO from Request: item tambahan boleh pilih warehouse --}}
+                      <select name="items[{{ $idx }}][warehouse_id]"
+                              class="form-select form-select-sm"
+                              @disabled($poLocked)>
+                        <option value="">— Pilih —</option>
+                        @foreach($warehouses as $w)
+                          <option value="{{ $w->id }}" @selected($w->id == $it->warehouse_id)>
+                            {{ $w->warehouse_name }}
+                          </option>
+                        @endforeach
+                      </select>
+                    @else
+                      {{-- PO manual → selalu Central Stock --}}
+                      <input type="hidden" name="items[{{ $idx }}][warehouse_id]" value="">
+                      <span class="text-muted">– Central Stock –</span>
+                    @endif
                   @endif
                 </td>
 
@@ -161,7 +199,9 @@
 
                 {{-- DISC TYPE --}}
                 <td>
-                  <select name="items[{{ $idx }}][discount_type]" class="form-select form-select-sm disc-type" @disabled($poLocked)>
+                  <select name="items[{{ $idx }}][discount_type]"
+                          class="form-select form-select-sm disc-type"
+                          @disabled($poLocked)>
                     <option value="">-</option>
                     <option value="percent" @selected($it->discount_type==='percent')>%</option>
                     <option value="amount"  @selected($it->discount_type==='amount')>Rp</option>
@@ -184,7 +224,7 @@
 
                 {{-- HAPUS --}}
                 <td class="text-center">
-                  @unless($poLocked)
+                  @unless($poLocked || $rowFromRequest)
                     <button type="button" class="btn btn-xs btn-link text-danger btn-remove">&times;</button>
                   @endunless
                 </td>
@@ -192,6 +232,7 @@
               @php $idx++; @endphp
             @endforeach
           </tbody>
+
           <tfoot>
             <tr>
               <th colspan="7" class="text-end">SUBTOTAL</th>
@@ -224,15 +265,12 @@
   {{-- FORM ORDER & CANCEL (TERPISAH, BUKAN NESTED) --}}
   <div class="d-flex justify-content-end mt-2 gap-2">
     @unless($poLocked)
-    <form method="POST" action="{{ route('po.order', $po->id) }}" class="d-inline">
-            @csrf
-            <button type="submit" class="btn btn-warning me-2">
-                Set ORDERED
-            </button>
-            <a href="{{ route('po.index') }}" class="btn btn-outline-secondary">
-                Kembali
-            </a>
-        </form>
+      <form method="POST" action="{{ route('po.order', $po->id) }}" class="d-inline">
+        @csrf
+        <button type="submit" class="btn btn-warning me-2">
+          Set ORDERED
+        </button>
+      </form>
 
       <form method="POST" action="{{ route('po.cancel',$po->id) }}">
         @csrf
@@ -246,8 +284,9 @@
 @push('scripts')
 <script>
 (function () {
-  let nextIndex = {{ $idx ?? 0 }};
-  const poLocked = @json($poLocked);
+  let nextIndex      = {{ $idx ?? 0 }};
+  const poLocked     = @json($poLocked);
+  const isFromRequest = @json($isFromRequest);
 
   function renumberRows() {
     document.querySelectorAll('#tblItems tbody tr').forEach((tr, i) => {
@@ -299,18 +338,28 @@
     const select = tr.querySelector('.product-select');
     if (!select) return;
 
+    const priceMode = isFromRequest ? 'sell' : 'buy'; // PO dari request → harga jual, manual → harga beli
+
     select.addEventListener('change', function () {
-      if (poLocked) return; // kalau locked, jangan ubah apa-apa
+      if (poLocked) return;
 
       const opt       = this.options[this.selectedIndex];
-      const priceAttr = opt ? parseFloat(opt.dataset.price || 0) : 0;
+      const buyPrice  = opt ? parseFloat(opt.dataset.buy  || '0') : 0;
+      const sellPrice = opt ? parseFloat(opt.dataset.sell || '0') : 0;
       const supplier  = opt ? (opt.dataset.supplier || '-') : '-';
 
       const priceInput = tr.querySelector('.price');
       const supLabel   = tr.querySelector('.js-supplier-label');
 
+      let price;
+      if (priceMode === 'sell') {
+        price = sellPrice || buyPrice;
+      } else {
+        price = buyPrice || sellPrice;
+      }
+
       if (priceInput) {
-        priceInput.value = priceAttr;
+        priceInput.value = price || 0;
       }
 
       if (supLabel) {
@@ -320,6 +369,7 @@
       recalc();
     });
 
+    // set label supplier awal
     const selectedOpt = select.options[select.selectedIndex];
     if (selectedOpt && selectedOpt.value) {
       const supplier  = selectedOpt.dataset.supplier || '-';
@@ -330,10 +380,29 @@
 
   // Tambah baris baru
   const btnAdd = document.getElementById('btnAddRow');
-  if (btnAdd) {
+  if (btnAdd && !poLocked) {
     btnAdd.addEventListener('click', () => {
       const tbody = document.querySelector('#tblItems tbody');
-      const idx = nextIndex++;
+      const idx   = nextIndex++;
+
+      let warehouseCellHtml;
+      if (isFromRequest) {
+        // PO dari Request → baris tambahan boleh pilih warehouse
+        warehouseCellHtml = `
+          <select name="items[${idx}][warehouse_id]" class="form-select form-select-sm">
+            <option value="">— Pilih —</option>
+            @foreach($warehouses as $w)
+              <option value="{{ $w->id }}">{{ $w->warehouse_name }}</option>
+            @endforeach
+          </select>
+        `;
+      } else {
+        // PO manual → selalu Central Stock
+        warehouseCellHtml = `
+          <input type="hidden" name="items[${idx}][warehouse_id]" value="">
+          <span class="text-muted">– Central Stock –</span>
+        `;
+      }
 
       const tr = document.createElement('tr');
       tr.setAttribute('data-index', idx);
@@ -346,8 +415,13 @@
           <select name="items[${idx}][product_id]" class="form-select form-select-sm product-select">
             <option value="">— Pilih —</option>
             @foreach($products as $p)
+              @php
+                $buy  = (int)($p->purchase_price ?? $p->buy_price ?? $p->cost_price ?? 0);
+                $sell = (int)($p->selling_price ?? 0);
+              @endphp
               <option value="{{ $p->id }}"
-                      data-price="{{ (int)$p->selling_price }}"
+                      data-buy="{{ $buy }}"
+                      data-sell="{{ $sell }}"
                       data-supplier="{{ $p->supplier->name ?? '-' }}">
                 {{ $p->product_code }} — {{ $p->name }}
               </option>
@@ -356,19 +430,7 @@
           <div class="small text-muted js-supplier-label">-</div>
         </td>
 
-        <td>
-          @if($isFromRequest)
-            <select name="items[${idx}][warehouse_id]" class="form-select form-select-sm">
-              <option value="">— Pilih —</option>
-              @foreach($warehouses as $w)
-                <option value="{{ $w->id }}">{{ $w->warehouse_name }}</option>
-              @endforeach
-            </select>
-          @else
-            <input type="hidden" name="items[${idx}][warehouse_id]" value="">
-            <span class="text-muted">– Central Stock –</span>
-          @endif
-        </td>
+        <td>${warehouseCellHtml}</td>
 
         <td>
           <input type="number" min="1" class="form-control text-end qty"
@@ -401,6 +463,7 @@
           <button type="button" class="btn btn-xs btn-link text-danger btn-remove">&times;</button>
         </td>
       `;
+
       tbody.appendChild(tr);
       attachProductAutoPrice(tr);
       renumberRows();
@@ -439,5 +502,6 @@
 })();
 </script>
 @endpush
+
 
 @endsection

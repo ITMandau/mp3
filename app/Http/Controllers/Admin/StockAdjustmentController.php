@@ -77,7 +77,7 @@ class StockAdjustmentController extends Controller
         $products = Product::orderBy('name')
             ->get(['id', 'product_code', 'name', 'purchasing_price', 'selling_price']);
 
-        $items = $products->map(function ($p) use ($stockMap) {
+        $items = $products->map(function (Product $p) use ($stockMap) {
             return [
                 'id'               => $p->id,
                 'product_code'     => $p->product_code,
@@ -100,14 +100,18 @@ class StockAdjustmentController extends Controller
         $canAdjustPusat = empty($user->warehouse_id);
 
         $rules = [
-            'adj_date'           => 'required|date',
-            'notes'              => 'nullable|string',
-            'stock_scope_mode'   => 'required|in:single,all',
-            'price_update_mode'  => 'required|in:none,update_purchase,update_selling,update_both',
+            'adj_date'          => 'required|date',
+            'notes'             => 'nullable|string',
+            'stock_scope_mode'  => 'required|in:single,all',
+
+            // mode baru: stok / harga beli / harga jual / beli+jual / semua
+            'price_update_mode' => 'required|in:stock,purchase,selling,purchase_selling,stock_purchase_selling',
 
             'items'              => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.qty_after'  => 'required|integer|min:0',
+
+            // qty_after cuma wajib kalau mode menyentuh stok, jadi di rule cukup nullable
+            'items.*.qty_after'  => 'nullable|integer|min:0',
             'items.*.notes'      => 'nullable|string',
 
             'items.*.purchasing_price' => 'nullable|integer|min:0',
@@ -130,27 +134,30 @@ class StockAdjustmentController extends Controller
             $isPusatAdjust = $canAdjustPusat && empty($request->warehouse_id);
 
             // === ID untuk HEADER (FK ke warehouses)
-            // pusat: NULL (Stock Central), gudang: id gudang yang dipilih
             $warehouseIdForHeader = $isPusatAdjust
                 ? null
                 : (int) $request->warehouse_id;
 
             // === ID untuk HITUNG STOK (stock_levels & stock_movements)
-            // pusat: pakai 0 (owner_id=0), gudang: id gudang
             $locationIdForStock = $isPusatAdjust ? 0 : (int) $request->warehouse_id;
 
             // kode dokumen
             $nextNumber = (StockAdjustment::max('id') ?? 0) + 1;
             $adjCode    = 'ADJ-' . date('Ymd', strtotime($adjDate)) . '-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
 
-            $priceMode = $request->price_update_mode;
+            $mode = $request->price_update_mode;
+
+            // flag mode yang aktif
+            $updateStock    = in_array($mode, ['stock', 'stock_purchase_selling'], true);
+            $updatePurchase = in_array($mode, ['purchase', 'purchase_selling', 'stock_purchase_selling'], true);
+            $updateSelling  = in_array($mode, ['selling', 'purchase_selling', 'stock_purchase_selling'], true);
 
             /** @var StockAdjustment $adj */
             $adj = StockAdjustment::create([
                 'adj_code'          => $adjCode,
                 'stock_scope_mode'  => $request->stock_scope_mode,
-                'price_update_mode' => $priceMode,
-                'warehouse_id'      => $warehouseIdForHeader, // <— bisa NULL sekarang
+                'price_update_mode' => $mode,
+                'warehouse_id'      => $warehouseIdForHeader,
                 'adj_date'          => $adjDate,
                 'notes'             => $request->notes,
                 'created_by'        => Auth::id(),
@@ -158,47 +165,75 @@ class StockAdjustmentController extends Controller
 
             foreach ($request->items as $row) {
                 $productId = (int) $row['product_id'];
-                $qtyAfter  = (int) $row['qty_after'];
 
+                /** @var \App\Models\Product|null $product */
+                $product = Product::find($productId);
+
+                // stok sebelum
                 $qtyBefore = $this->getCurrentStock($locationIdForStock, $productId, $isPusatAdjust);
-                $qtyDiff   = $qtyAfter - $qtyBefore;
 
+                // kalau mode tidak update stok → qty_after = qty_before (biar diff = 0)
+                if ($updateStock) {
+                    $qtyAfter = (int) ($row['qty_after'] ?? 0);
+                } else {
+                    $qtyAfter = $qtyBefore;
+                }
+
+                $qtyDiff = $qtyAfter - $qtyBefore;
+
+                // harga sebelum
+                $purchaseBefore = $product ? (int) $product->purchasing_price : null;
+                $sellingBefore  = $product ? (int) $product->selling_price    : null;
+
+                // default after = before
+                $purchaseAfter  = $purchaseBefore;
+                $sellingAfter   = $sellingBefore;
+
+                // input harga dari form
+                if ($updatePurchase && array_key_exists('purchasing_price', $row) && $row['purchasing_price'] !== '') {
+                    $purchaseAfter = (int) $row['purchasing_price'];
+                }
+
+                if ($updateSelling && array_key_exists('selling_price', $row) && $row['selling_price'] !== '') {
+                    $sellingAfter = (int) $row['selling_price'];
+                }
+
+                // simpan detail item
                 StockAdjustmentItem::create([
-                    'stock_adjustment_id' => $adj->id,
-                    'product_id'          => $productId,
-                    'qty_before'          => $qtyBefore,
-                    'qty_after'           => $qtyAfter,
-                    'qty_diff'            => $qtyDiff,
-                    'notes'               => $row['notes'] ?? null,
+                    'stock_adjustment_id'   => $adj->id,
+                    'product_id'            => $productId,
+                    'qty_before'            => $qtyBefore,
+                    'qty_after'             => $qtyAfter,
+                    'qty_diff'              => $qtyDiff,
+                    'purchase_price_before' => $purchaseBefore,
+                    'purchase_price_after'  => $purchaseAfter,
+                    'selling_price_before'  => $sellingBefore,
+                    'selling_price_after'   => $sellingAfter,
+                    'notes'                 => $row['notes'] ?? null,
                 ]);
 
-                // update stock_levels (pusat vs gudang)
-                $this->updateStockLevel($locationIdForStock, $productId, $qtyAfter, $isPusatAdjust);
+                // update stok kalau mode menyentuh stok
+                if ($updateStock) {
+                    $this->updateStockLevel($locationIdForStock, $productId, $qtyAfter, $isPusatAdjust);
+                    $this->insertStockMovement($locationIdForStock, $productId, $qtyDiff, $adj, $isPusatAdjust);
+                }
 
-                // log ke stock_movements
-                $this->insertStockMovement($locationIdForStock, $productId, $qtyDiff, $adj, $isPusatAdjust);
+                // update harga di master product
+                if ($product) {
+                    $updated = false;
 
-                // ==== UPDATE HARGA PRODUK (kalau mode harga != none) ====
-                if ($priceMode !== 'none') {
-                    $purchPrice = isset($row['purchasing_price']) && $row['purchasing_price'] !== ''
-                        ? (int) $row['purchasing_price']
-                        : null;
+                    if ($updatePurchase && ! is_null($purchaseAfter) && $purchaseAfter !== $purchaseBefore) {
+                        $product->purchasing_price = $purchaseAfter;
+                        $updated = true;
+                    }
 
-                    $sellPrice  = isset($row['selling_price']) && $row['selling_price'] !== ''
-                        ? (int) $row['selling_price']
-                        : null;
+                    if ($updateSelling && ! is_null($sellingAfter) && $sellingAfter !== $sellingBefore) {
+                        $product->selling_price = $sellingAfter;
+                        $updated = true;
+                    }
 
-                    if (!is_null($purchPrice) || !is_null($sellPrice)) {
-                        $product = Product::find($productId);
-                        if ($product) {
-                            if (in_array($priceMode, ['update_purchase', 'update_both'], true) && !is_null($purchPrice)) {
-                                $product->purchasing_price = $purchPrice;
-                            }
-                            if (in_array($priceMode, ['update_selling', 'update_both'], true) && !is_null($sellPrice)) {
-                                $product->selling_price = $sellPrice;
-                            }
-                            $product->save();
-                        }
+                    if ($updated) {
+                        $product->save();
                     }
                 }
             }

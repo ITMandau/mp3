@@ -228,6 +228,23 @@
                     @endif
                   </button>
 
+                  {{-- CANCEL GR (HANYA SUPERADMIN) --}}
+                  @if($isSuperadmin && $lastReceipt)
+                    <form method="POST"
+                          action="{{ route('good-received.cancel', $lastReceipt) }}"
+                          class="form-cancel-gr d-inline">
+                      @csrf
+                      {{-- kalau di route kamu pakai DELETE:
+                      @method('DELETE')
+                      --}}
+                      <button type="submit"
+                              class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1">
+                        <i class="bx bx-undo"></i>
+                        <span>Cancel GR</span>
+                      </button>
+                    </form>
+                  @endif
+
                 </div>
               </td>
             </tr>

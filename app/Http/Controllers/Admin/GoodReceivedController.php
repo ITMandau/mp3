@@ -828,7 +828,7 @@ class GoodReceivedController extends Controller
 
         $sumAll = $sumGood + $sumBad;
 
-        $status     = $req->status ?? 'ordered';
+        $status     = $req->status ?? 'approved';
         $receivedAt = $req->received_at;
 
         if ($reqQty > 0) {
@@ -836,10 +836,10 @@ class GoodReceivedController extends Controller
                 $status     = 'received';
                 $receivedAt = $receivedAt ?: now();
             } elseif ($sumAll === 0) {
-                $status     = 'ordered';
+                $status     = 'approved';
                 $receivedAt = null;
             } else {
-                $status     = 'ordered';
+                $status     = 'approved';
                 $receivedAt = null;
             }
         }

@@ -16,14 +16,23 @@ return new class extends Migration {
                   ->cascadeOnUpdate();
 
             $table->foreignId('product_id')
-                  ->constrained()
+                  ->constrained()          // ->references('id')->on('products')
                   ->cascadeOnUpdate();
 
+            // ==== LOG STOK ====
             $table->integer('qty_before'); // stok sistem sebelum adjustment
-            $table->integer('qty_after');  // stok fisik
-            $table->integer('qty_diff');   // qty_after - qty_before (bisa -/+)
+            $table->integer('qty_after');  // stok setelah adjustment (bisa sama kalau cuma ubah harga)
+            $table->integer('qty_diff');   // qty_after - qty_before (bisa negatif/positif)
 
-            $table->string('notes')->nullable(); // notes per item kalau perlu
+            // ==== LOG HARGA (optional sesuai mode) ====
+            // null kalau mode adjustment-nya tidak menyentuh harga tsb
+            $table->integer('purchase_price_before')->nullable(); // harga beli sebelum
+            $table->integer('purchase_price_after')->nullable();  // harga beli sesudah
+            $table->integer('selling_price_before')->nullable();  // harga jual sebelum
+            $table->integer('selling_price_after')->nullable();   // harga jual sesudah
+
+            // Catatan per item
+            $table->string('notes')->nullable();
 
             $table->timestamps();
 

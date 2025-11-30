@@ -12,6 +12,10 @@ class StockAdjustmentItem extends Model
         'qty_before',
         'qty_after',
         'qty_diff',
+        'purchase_price_before',
+        'purchase_price_after',
+        'selling_price_before',
+        'selling_price_after',
         'notes',
     ];
 
